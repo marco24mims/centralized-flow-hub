@@ -30,8 +30,10 @@ function App() {
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active', campaign_id: null });
   const [newCampaign, setNewCampaign] = useState({ name: '', description: '', status: 'active' });
+  const [editedProject, setEditedProject] = useState(null);
 
   useEffect(() => {
     loadProjects();
@@ -128,6 +130,29 @@ function App() {
       loadCampaigns();
     } catch (error) {
       console.error('Error creating campaign:', error);
+    }
+  };
+
+  const openEditModal = (project) => {
+    setEditedProject({ ...project });
+    setShowEditModal(true);
+  };
+
+  const updateProject = async (e) => {
+    e.preventDefault();
+    if (!editedProject || !editedProject.name.trim()) return;
+
+    try {
+      await axios.put(`${API_URL}/projects/${editedProject.id}`, editedProject);
+      setShowEditModal(false);
+      setEditedProject(null);
+      loadProjects();
+      // Update current project if we're viewing it
+      if (currentProject && currentProject.id === editedProject.id) {
+        setCurrentProject(editedProject);
+      }
+    } catch (error) {
+      console.error('Error updating project:', error);
     }
   };
 
@@ -564,6 +589,13 @@ function App() {
           <button className="back-btn" onClick={() => setView('dashboard')}>
             ← Back to Dashboard
           </button>
+          <button
+            className="create-btn"
+            onClick={() => openEditModal(currentProject)}
+            style={{ marginLeft: '10px', padding: '8px 16px' }}
+          >
+            ✏️ Edit Project
+          </button>
           <h1>📋 {currentProject.name}</h1>
           <p>{currentProject.description}</p>
         </div>
@@ -641,6 +673,65 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Edit Project Modal */}
+      {showEditModal && editedProject && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Edit Project</h2>
+            <form onSubmit={updateProject}>
+              <div className="form-group">
+                <label>Project Name *</label>
+                <input
+                  type="text"
+                  placeholder="Enter project name"
+                  value={editedProject.name}
+                  onChange={(e) => setEditedProject({ ...editedProject, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  placeholder="Project description"
+                  value={editedProject.description || ''}
+                  onChange={(e) => setEditedProject({ ...editedProject, description: e.target.value })}
+                  rows="3"
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  value={editedProject.status}
+                  onChange={(e) => setEditedProject({ ...editedProject, status: e.target.value })}
+                >
+                  <option value="active">Active</option>
+                  <option value="on-hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Campaign</label>
+                <select
+                  value={editedProject.campaign_id || ''}
+                  onChange={(e) => setEditedProject({ ...editedProject, campaign_id: e.target.value ? parseInt(e.target.value) : null })}
+                >
+                  <option value="">No Campaign</option>
+                  {campaigns.map(campaign => (
+                    <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowEditModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

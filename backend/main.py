@@ -149,6 +149,7 @@ class Project(BaseModel):
     name: str
     description: Optional[str] = None
     status: str = "active"
+    campaign_id: Optional[int] = None
     created_at: Optional[str] = None
 
 class ChecklistItem(BaseModel):
@@ -191,18 +192,45 @@ def get_projects():
 def create_project(project: Project):
     conn = sqlite3.connect('demo.db')
     c = conn.cursor()
-    c.execute('INSERT INTO projects (name, description, status) VALUES (?, ?, ?)',
-              (project.name, project.description, project.status))
+    c.execute('INSERT INTO projects (name, description, status, campaign_id) VALUES (?, ?, ?, ?)',
+              (project.name, project.description, project.status, project.campaign_id))
     project.id = c.lastrowid
     conn.commit()
     conn.close()
     return project
 
+@app.put("/api/projects/{project_id}", response_model=Project)
+def update_project(project_id: int, project: Project):
+    conn = sqlite3.connect('demo.db')
+    c = conn.cursor()
+    c.execute('''UPDATE projects
+                 SET name = ?, description = ?, status = ?, campaign_id = ?
+                 WHERE id = ?''',
+              (project.name, project.description, project.status, project.campaign_id, project_id))
+    conn.commit()
+
+    # Fetch updated project
+    c.execute('SELECT id, name, description, status, campaign_id, created_at FROM projects WHERE id = ?', (project_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return Project(
+        id=row[0],
+        name=row[1],
+        description=row[2],
+        status=row[3],
+        campaign_id=row[4],
+        created_at=row[5]
+    )
+
 @app.get("/api/projects/stats")
 def get_projects_stats():
     conn = sqlite3.connect('demo.db')
     c = conn.cursor()
-    c.execute('SELECT id, name, description, status, created_at FROM projects ORDER BY created_at DESC')
+    c.execute('SELECT id, name, description, status, campaign_id, created_at FROM projects ORDER BY created_at DESC')
     projects = []
     for row in c.fetchall():
         project_id = row[0]
@@ -225,7 +253,8 @@ def get_projects_stats():
             "name": row[1],
             "description": row[2],
             "status": row[3],
-            "created_at": row[4],
+            "campaign_id": row[4],
+            "created_at": row[5],
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "progress": progress,
