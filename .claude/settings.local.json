@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /S /B C:MIMScfh-project)",
+      "Bash(mkdir:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(python main.py:*)",
+      "Bash(npm install)",
+      "Bash(npm start)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(pkill:*)",
+      "Bash(PORT=3001 npm start)",
+      "Bash(curl:*)"
+    ]
+  }
+}
