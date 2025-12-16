@@ -31,6 +31,14 @@ from checklist_template_handler import (
 )
 from checklist_template_database import migrate_checklist_templates
 
+# Import stakeholder modules
+from stakeholder_models import Stakeholder, StakeholderCreate, StakeholderUpdate
+from stakeholder_handler import (
+    get_project_stakeholders, get_stakeholder_by_id, create_stakeholder,
+    update_stakeholder, delete_stakeholder, get_stakeholder_count
+)
+from stakeholder_database import migrate_stakeholders
+
 app = FastAPI(title="Project Management Demo")
 
 # CORS middleware
@@ -158,6 +166,11 @@ print("Campaign migration complete!")
 print("Running checklist templates migration...")
 migrate_checklist_templates()
 print("Checklist templates migration complete!")
+
+# Run stakeholders migration
+print("Running stakeholders migration...")
+migrate_stakeholders()
+print("Stakeholders migration complete!")
 
 # Pydantic models
 class Project(BaseModel):
@@ -502,6 +515,56 @@ def apply_template(project_id: int, template_id: int):
         "items_created": len(items),
         "items": items
     }
+
+# Stakeholder endpoints
+@app.get("/api/projects/{project_id}/stakeholders", response_model=List[Stakeholder])
+def list_project_stakeholders(project_id: int):
+    """Get all stakeholders for a project"""
+    stakeholders = get_project_stakeholders(project_id)
+    return stakeholders
+
+@app.get("/api/stakeholders/{stakeholder_id}", response_model=Stakeholder)
+def get_stakeholder(stakeholder_id: int):
+    """Get a specific stakeholder"""
+    stakeholder = get_stakeholder_by_id(stakeholder_id)
+    if not stakeholder:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+    return stakeholder
+
+@app.post("/api/stakeholders", response_model=Stakeholder)
+def add_stakeholder(stakeholder: StakeholderCreate):
+    """Add a stakeholder to a project"""
+    result = create_stakeholder(
+        stakeholder.project_id,
+        stakeholder.name,
+        stakeholder.email,
+        stakeholder.role,
+        stakeholder.access_level
+    )
+    if not result:
+        raise HTTPException(status_code=400, detail="Stakeholder with this email already exists for this project")
+    return result
+
+@app.put("/api/stakeholders/{stakeholder_id}", response_model=Stakeholder)
+def update_existing_stakeholder(stakeholder_id: int, stakeholder: StakeholderUpdate):
+    """Update a stakeholder"""
+    result = update_stakeholder(
+        stakeholder_id,
+        stakeholder.name,
+        stakeholder.role,
+        stakeholder.access_level
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+    return result
+
+@app.delete("/api/stakeholders/{stakeholder_id}")
+def remove_stakeholder(stakeholder_id: int):
+    """Remove a stakeholder from a project"""
+    success = delete_stakeholder(stakeholder_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+    return {"status": "deleted", "id": stakeholder_id}
 
 if __name__ == "__main__":
     import uvicorn
