@@ -9,7 +9,7 @@ Group=laraveluat
 WorkingDirectory=/opt/lampp/htdocs/MIMS/centralized-flow-hub/frontend
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="PORT=3000"
-ExecStart=/usr/bin/serve -s build -p 3000
+ExecStart=/usr/local/bin/serve -s build -p 3000
 
 # Restart policy
 Restart=always
