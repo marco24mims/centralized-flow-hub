@@ -31,19 +31,62 @@ CFH Project is a FastAPI-based project management system that integrates with:
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.11+ (with python3-venv and python3-full on Linux)
+- Node.js 16+ and npm
+- Git
+
+**For Linux/Ubuntu users:**
+```bash
+# Install required packages
+sudo apt update
+sudo apt install python3-full python3-venv python3-pip
+```
+
 ### Backend Setup
+
+#### Option 1: Automated Setup (Linux/Mac)
+
+```bash
+cd backend
+chmod +x setup.sh
+./setup.sh
+```
+
+#### Option 2: Manual Setup (All Platforms)
 
 ```bash
 cd backend
 
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+# On Linux/Mac:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
+
+# Create .env file
+cp .env.example .env
+# Edit .env and set your WEBHOOK_SECRET
 
 # Start the server
 python -m uvicorn main:app --reload --port 8000
 ```
 
 The server will run at: http://localhost:8000
+
+**Note:** Always activate the virtual environment before running the server:
+```bash
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
+```
 
 ### Frontend Setup
 
