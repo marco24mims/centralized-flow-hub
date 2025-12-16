@@ -20,6 +20,17 @@ from campaign_handler import (
 )
 from campaign_database import migrate_campaigns
 
+# Import checklist template modules
+from checklist_template_models import (
+    ChecklistTemplate, ChecklistTemplateWithItems,
+    ChecklistTemplateCreate, ChecklistTemplateUpdate
+)
+from checklist_template_handler import (
+    get_all_templates, get_template_by_id, create_template,
+    update_template, delete_template, apply_template_to_project
+)
+from checklist_template_database import migrate_checklist_templates
+
 app = FastAPI(title="Project Management Demo")
 
 # CORS middleware
@@ -143,6 +154,11 @@ print("Running campaign migration...")
 migrate_campaigns()
 print("Campaign migration complete!")
 
+# Run checklist templates migration
+print("Running checklist templates migration...")
+migrate_checklist_templates()
+print("Checklist templates migration complete!")
+
 # Pydantic models
 class Project(BaseModel):
     id: Optional[int] = None
@@ -225,6 +241,28 @@ def update_project(project_id: int, project: Project):
         campaign_id=row[4],
         created_at=row[5]
     )
+
+@app.delete("/api/projects/{project_id}")
+def delete_project(project_id: int):
+    conn = sqlite3.connect('demo.db')
+    c = conn.cursor()
+
+    # Check if project exists
+    c.execute('SELECT id FROM projects WHERE id = ?', (project_id,))
+    if not c.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Delete related records first (foreign key constraints)
+    c.execute('DELETE FROM checklist_items WHERE project_id = ?', (project_id,))
+    c.execute('DELETE FROM comments WHERE project_id = ?', (project_id,))
+
+    # Delete the project
+    c.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+    conn.commit()
+    conn.close()
+
+    return {"status": "deleted", "id": project_id}
 
 @app.get("/api/projects/stats")
 def get_projects_stats():
@@ -408,6 +446,62 @@ def webhook_health():
             "status": "error",
             "message": str(e)
         }
+
+# Checklist Template endpoints
+@app.get("/api/checklist-templates", response_model=List[ChecklistTemplateWithItems])
+def list_checklist_templates():
+    """Get all checklist templates with item counts"""
+    templates = get_all_templates()
+    return templates
+
+@app.get("/api/checklist-templates/{template_id}", response_model=ChecklistTemplateWithItems)
+def get_checklist_template(template_id: int):
+    """Get a specific checklist template with all its items"""
+    template = get_template_by_id(template_id)
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return template
+
+@app.post("/api/checklist-templates", response_model=ChecklistTemplateWithItems)
+def create_checklist_template(template: ChecklistTemplateCreate):
+    """Create a new checklist template"""
+    result = create_template(template.name, template.description, template.items)
+    return result
+
+@app.put("/api/checklist-templates/{template_id}", response_model=ChecklistTemplateWithItems)
+def update_checklist_template(template_id: int, template: ChecklistTemplateUpdate):
+    """Update a checklist template"""
+    result = update_template(
+        template_id,
+        template.name,
+        template.description,
+        template.items
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return result
+
+@app.delete("/api/checklist-templates/{template_id}")
+def delete_checklist_template(template_id: int):
+    """Delete a checklist template"""
+    success = delete_template(template_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"status": "deleted", "id": template_id}
+
+@app.post("/api/projects/{project_id}/apply-template/{template_id}")
+def apply_template(project_id: int, template_id: int):
+    """Apply a checklist template to a project"""
+    items = apply_template_to_project(template_id, project_id)
+    if not items:
+        raise HTTPException(status_code=404, detail="Template or project not found")
+    return {
+        "status": "success",
+        "project_id": project_id,
+        "template_id": template_id,
+        "items_created": len(items),
+        "items": items
+    }
 
 if __name__ == "__main__":
     import uvicorn
