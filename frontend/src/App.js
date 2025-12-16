@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+// Dynamically construct API URL based on current hostname
+const getApiUrl = () => {
+  const hostname = window.location.hostname;
+  // If accessing via IP address, use that IP for API
+  // Otherwise use localhost (for local development)
+  const apiHost = hostname === 'localhost' || hostname === '127.0.0.1'
+    ? 'localhost'
+    : hostname;
+  return `http://${apiHost}:8000/api`;
+};
+
+const API_URL = getApiUrl();
 
 function App() {
   const [view, setView] = useState('dashboard'); // 'dashboard', 'project', 'campaigns', or 'campaign'
