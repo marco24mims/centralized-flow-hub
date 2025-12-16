@@ -54,6 +54,8 @@ This creates an optimized production build in the `build/` directory.
 - View all projects with statistics
 - See project progress (tasks completed vs total)
 - View comment counts
+- Filter projects by status and campaign
+- Create new projects with campaign assignment
 
 ### Checklist Management
 - View project checklists
@@ -66,9 +68,12 @@ This creates an optimized production build in the `build/` directory.
 - Real-time updates (5-second polling)
 
 ### Campaign Grouping
+- Create and manage campaigns
 - Group related projects into campaigns
-- View campaign statistics
+- View campaign statistics (project count, completion rate)
 - Filter projects by campaign
+- View all projects within a campaign
+- Assign projects to campaigns during creation
 
 ## Deployment Options
 
@@ -135,32 +140,64 @@ server {
 </VirtualHost>
 ```
 
-## Production Systemd Service (Optional)
+## Production Systemd Service (Recommended for Linux)
 
-If you want the frontend to run as a service:
+If you want the frontend to run as a background service that starts automatically on boot:
 
-```ini
-[Unit]
-Description=CFH Project Frontend
-After=network.target
+### Prerequisites
 
-[Service]
-Type=simple
-User=laraveluat
-WorkingDirectory=/opt/lampp/htdocs/MIMS/centralized-flow-hub/frontend
-ExecStart=/usr/bin/serve -s build -p 3000
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
+1. Build the React app:
+```bash
+npm run build
 ```
 
-Save as `/etc/systemd/system/cfh-frontend.service` and:
+2. Install `serve` globally:
+```bash
+sudo npm install -g serve
+```
 
+### Automated Installation
+
+```bash
+cd frontend
+chmod +x install-frontend-service.sh
+sudo ./install-frontend-service.sh
+```
+
+This will:
+- Install the systemd service
+- Enable auto-start on boot
+- Start the frontend service
+- Set up logging to `/var/log/cfh-project/frontend-*.log`
+
+### Manual Installation
+
+1. Copy the service file:
+```bash
+sudo cp cfh-frontend.service /etc/systemd/system/
+sudo chmod 644 /etc/systemd/system/cfh-frontend.service
+```
+
+2. Enable and start the service:
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable cfh-frontend
 sudo systemctl start cfh-frontend
+```
+
+3. Check status:
+```bash
+sudo systemctl status cfh-frontend
+```
+
+### Useful Commands
+
+```bash
+sudo systemctl status cfh-frontend    # Check status
+sudo systemctl start cfh-frontend     # Start service
+sudo systemctl stop cfh-frontend      # Stop service
+sudo systemctl restart cfh-frontend   # Restart service
+sudo journalctl -u cfh-frontend -f    # Follow logs in real-time
 ```
 
 ## CORS Configuration

@@ -4,9 +4,11 @@ import axios from 'axios';
 const API_URL = 'http://localhost:8000/api';
 
 function App() {
-  const [view, setView] = useState('dashboard'); // 'dashboard' or 'project'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'project', 'campaigns', or 'campaign'
   const [projects, setProjects] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
+  const [currentCampaign, setCurrentCampaign] = useState(null);
   const [checklist, setChecklist] = useState([]);
   const [comments, setComments] = useState([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
@@ -14,12 +16,19 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [campaignFilter, setCampaignFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active' });
+  const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+  const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active', campaign_id: null });
+  const [newCampaign, setNewCampaign] = useState({ name: '', description: '', status: 'active' });
 
   useEffect(() => {
     loadProjects();
-    const interval = setInterval(loadProjects, 5000); // Auto-refresh every 5 seconds
+    loadCampaigns();
+    const interval = setInterval(() => {
+      loadProjects();
+      loadCampaigns();
+    }, 5000); // Auto-refresh every 5 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -30,6 +39,12 @@ function App() {
     }
   }, [currentProject, view]);
 
+  useEffect(() => {
+    if (currentCampaign && view === 'campaign') {
+      loadCampaignDetails(currentCampaign.id);
+    }
+  }, [currentCampaign, view]);
+
   const loadProjects = async () => {
     try {
       const response = await axios.get(`${API_URL}/projects/stats`);
@@ -38,6 +53,24 @@ function App() {
     } catch (error) {
       console.error('Error loading projects:', error);
       setLoading(false);
+    }
+  };
+
+  const loadCampaigns = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/campaigns`);
+      setCampaigns(response.data);
+    } catch (error) {
+      console.error('Error loading campaigns:', error);
+    }
+  };
+
+  const loadCampaignDetails = async (campaignId) => {
+    try {
+      const response = await axios.get(`${API_URL}/campaigns/${campaignId}`);
+      setCurrentCampaign(response.data);
+    } catch (error) {
+      console.error('Error loading campaign details:', error);
     }
   };
 
@@ -65,7 +98,7 @@ function App() {
 
     try {
       await axios.post(`${API_URL}/projects`, newProject);
-      setNewProject({ name: '', description: '', status: 'active' });
+      setNewProject({ name: '', description: '', status: 'active', campaign_id: null });
       setShowCreateModal(false);
       loadProjects();
     } catch (error) {
@@ -73,9 +106,28 @@ function App() {
     }
   };
 
+  const createCampaign = async (e) => {
+    e.preventDefault();
+    if (!newCampaign.name.trim()) return;
+
+    try {
+      await axios.post(`${API_URL}/campaigns`, newCampaign);
+      setNewCampaign({ name: '', description: '', status: 'active' });
+      setShowCreateCampaignModal(false);
+      loadCampaigns();
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+    }
+  };
+
   const openProject = (project) => {
     setCurrentProject(project);
     setView('project');
+  };
+
+  const openCampaign = (campaign) => {
+    setCurrentCampaign(campaign);
+    setView('campaign');
   };
 
   const toggleChecklistItem = async (itemId, completed) => {
@@ -136,7 +188,10 @@ function App() {
     const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          (project.description && project.description.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCampaign = campaignFilter === 'all' ||
+                           (campaignFilter === 'none' && !project.campaign_id) ||
+                           (project.campaign_id && project.campaign_id.toString() === campaignFilter);
+    return matchesSearch && matchesStatus && matchesCampaign;
   });
 
   if (loading) {
@@ -150,6 +205,15 @@ function App() {
         <header className="header">
           <h1>🚀 Project Management Dashboard</h1>
           <p>Manage all your projects in one place</p>
+          <div style={{ marginTop: '10px' }}>
+            <button
+              className="nav-btn"
+              onClick={() => setView('campaigns')}
+              style={{ marginRight: '10px', padding: '8px 16px', cursor: 'pointer' }}
+            >
+              📁 View Campaigns
+            </button>
+          </div>
         </header>
 
         <div className="container">
@@ -168,6 +232,13 @@ function App() {
                 <option value="active">Active</option>
                 <option value="completed">Completed</option>
                 <option value="on-hold">On Hold</option>
+              </select>
+              <select value={campaignFilter} onChange={(e) => setCampaignFilter(e.target.value)}>
+                <option value="all">All Campaigns</option>
+                <option value="none">No Campaign</option>
+                {campaigns.map(campaign => (
+                  <option key={campaign.id} value={campaign.id.toString()}>{campaign.name}</option>
+                ))}
               </select>
             </div>
             <button className="create-btn" onClick={() => setShowCreateModal(true)}>
@@ -267,6 +338,18 @@ function App() {
                     <option value="completed">Completed</option>
                   </select>
                 </div>
+                <div className="form-group">
+                  <label>Campaign (Optional)</label>
+                  <select
+                    value={newProject.campaign_id || ''}
+                    onChange={(e) => setNewProject({ ...newProject, campaign_id: e.target.value ? parseInt(e.target.value) : null })}
+                  >
+                    <option value="">No Campaign</option>
+                    {campaigns.map(campaign => (
+                      <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="modal-actions">
                   <button type="button" className="btn-secondary" onClick={() => setShowCreateModal(false)}>
                     Cancel
@@ -277,6 +360,182 @@ function App() {
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  // Campaigns View
+  if (view === 'campaigns') {
+    return (
+      <div className="app">
+        <header className="header">
+          <div>
+            <button className="back-btn" onClick={() => setView('dashboard')}>
+              ← Back to Dashboard
+            </button>
+            <h1>📁 Campaign Management</h1>
+            <p>Organize projects into campaigns</p>
+          </div>
+        </header>
+
+        <div className="container">
+          <div className="toolbar">
+            <button className="create-btn" onClick={() => setShowCreateCampaignModal(true)}>
+              + New Campaign
+            </button>
+          </div>
+
+          <div className="project-grid">
+            {campaigns.map((campaign) => (
+              <div key={campaign.id} className="project-card" onClick={() => openCampaign(campaign)}>
+                <div className="project-card-header">
+                  <h3>{campaign.name}</h3>
+                  <span className={`status-badge ${campaign.status}`}>{campaign.status}</span>
+                </div>
+                <p className="project-description">{campaign.description}</p>
+
+                <div className="project-meta">
+                  <div className="meta-item">
+                    <span>📊 {campaign.project_count || 0} Projects</span>
+                  </div>
+                  <div className="meta-item">
+                    <span>✅ {campaign.completed_projects || 0} Completed</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {campaigns.length === 0 && (
+            <div className="empty-state">
+              <h3>No campaigns yet</h3>
+              <p>Create your first campaign to organize projects</p>
+            </div>
+          )}
+        </div>
+
+        {/* Create Campaign Modal */}
+        {showCreateCampaignModal && (
+          <div className="modal-overlay" onClick={() => setShowCreateCampaignModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Create New Campaign</h2>
+              <form onSubmit={createCampaign}>
+                <div className="form-group">
+                  <label>Campaign Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter campaign name"
+                    value={newCampaign.name}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    placeholder="Campaign description"
+                    value={newCampaign.description}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, description: e.target.value })}
+                    rows="3"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Status</label>
+                  <select
+                    value={newCampaign.status}
+                    onChange={(e) => setNewCampaign({ ...newCampaign, status: e.target.value })}
+                  >
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setShowCreateCampaignModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">Create Campaign</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Campaign Detail View
+  if (view === 'campaign' && currentCampaign) {
+    return (
+      <div className="app">
+        <header className="header">
+          <div>
+            <button className="back-btn" onClick={() => setView('campaigns')}>
+              ← Back to Campaigns
+            </button>
+            <h1>📁 {currentCampaign.name}</h1>
+            <p>{currentCampaign.description}</p>
+          </div>
+        </header>
+
+        <div className="container">
+          <div className="stats">
+            <div className="stat-card">
+              <div className="stat-value">{currentCampaign.project_count || 0}</div>
+              <div className="stat-label">Total Projects</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{currentCampaign.completed_projects || 0}</div>
+              <div className="stat-label">Completed</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">
+                {currentCampaign.project_count > 0
+                  ? Math.round((currentCampaign.completed_projects / currentCampaign.project_count) * 100)
+                  : 0}%
+              </div>
+              <div className="stat-label">Progress</div>
+            </div>
+          </div>
+
+          <h2 style={{ marginTop: '30px', marginBottom: '20px' }}>Campaign Projects</h2>
+          <div className="project-grid">
+            {currentCampaign.projects && currentCampaign.projects.map((project) => (
+              <div key={project.id} className="project-card" onClick={() => openProject(project)}>
+                <div className="project-card-header">
+                  <h3>{project.name}</h3>
+                  <span className={`status-badge ${project.status}`}>{project.status}</span>
+                </div>
+                <p className="project-description">{project.description}</p>
+
+                <div className="progress-section">
+                  <div className="progress-info">
+                    <span>Progress</span>
+                    <span className="progress-percentage">{project.progress || 0}%</span>
+                  </div>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${project.progress || 0}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="project-meta">
+                  <div className="meta-item">
+                    <span>✅ {project.completed_tasks || 0}/{project.total_tasks || 0} Tasks</span>
+                  </div>
+                  <div className="meta-item">
+                    <span>💬 {project.comment_count || 0} Comments</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {(!currentCampaign.projects || currentCampaign.projects.length === 0) && (
+            <div className="empty-state">
+              <h3>No projects in this campaign</h3>
+              <p>Add projects to this campaign from the project creation form</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
