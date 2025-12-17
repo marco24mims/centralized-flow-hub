@@ -15,13 +15,15 @@ const getApiUrl = () => {
 const API_URL = getApiUrl();
 
 function App() {
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'project', 'campaigns', or 'campaign'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'project', 'campaigns', 'campaign', 'templates'
   const [projects, setProjects] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [templates, setTemplates] = useState([]);
   const [currentProject, setCurrentProject] = useState(null);
   const [currentCampaign, setCurrentCampaign] = useState(null);
   const [checklist, setChecklist] = useState([]);
   const [comments, setComments] = useState([]);
+  const [stakeholders, setStakeholders] = useState([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,9 +32,14 @@ function App() {
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showStakeholderModal, setShowStakeholderModal] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active', campaign_id: null });
   const [newCampaign, setNewCampaign] = useState({ name: '', description: '', status: 'active' });
+  const [newTemplate, setNewTemplate] = useState({ name: '', description: '', items: [''] });
+  const [newStakeholder, setNewStakeholder] = useState({ name: '', email: '', role: '', access_level: 'viewer' });
   const [editedProject, setEditedProject] = useState(null);
 
   useEffect(() => {
@@ -49,6 +56,7 @@ function App() {
     if (currentProject && view === 'project') {
       loadChecklist(currentProject.id);
       loadComments(currentProject.id);
+      loadStakeholders(currentProject.id);
     }
   }, [currentProject, view]);
 
@@ -84,6 +92,24 @@ function App() {
       setCurrentCampaign(response.data);
     } catch (error) {
       console.error('Error loading campaign details:', error);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/checklist-templates`);
+      setTemplates(response.data);
+    } catch (error) {
+      console.error('Error loading templates:', error);
+    }
+  };
+
+  const loadStakeholders = async (projectId) => {
+    try {
+      const response = await axios.get(`${API_URL}/projects/${projectId}/stakeholders`);
+      setStakeholders(response.data);
+    } catch (error) {
+      console.error('Error loading stakeholders:', error);
     }
   };
 
@@ -164,6 +190,79 @@ function App() {
   const openCampaign = (campaign) => {
     setCurrentCampaign(campaign);
     setView('campaign');
+  };
+
+  const deleteProject = async (projectId) => {
+    if (!window.confirm('Are you sure you want to delete this project? This will also delete all checklists and comments.')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/projects/${projectId}`);
+      loadProjects();
+      setView('dashboard');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      alert('Failed to delete project');
+    }
+  };
+
+  const deleteCampaign = async (campaignId) => {
+    if (!window.confirm('Are you sure you want to delete this campaign? Projects will be unlinked but not deleted.')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/campaigns/${campaignId}`);
+      loadCampaigns();
+      setView('campaigns');
+    } catch (error) {
+      console.error('Error deleting campaign:', error);
+      alert('Failed to delete campaign');
+    }
+  };
+
+  const addStakeholder = async (e) => {
+    e.preventDefault();
+    if (!newStakeholder.name.trim() || !newStakeholder.email.trim()) return;
+
+    try {
+      await axios.post(`${API_URL}/stakeholders`, {
+        ...newStakeholder,
+        project_id: currentProject.id
+      });
+      setNewStakeholder({ name: '', email: '', role: '', access_level: 'viewer' });
+      setShowStakeholderModal(false);
+      loadStakeholders(currentProject.id);
+    } catch (error) {
+      console.error('Error adding stakeholder:', error);
+      alert(error.response?.data?.detail || 'Failed to add stakeholder');
+    }
+  };
+
+  const removeStakeholder = async (stakeholderId) => {
+    if (!window.confirm('Are you sure you want to remove this stakeholder?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/stakeholders/${stakeholderId}`);
+      loadStakeholders(currentProject.id);
+    } catch (error) {
+      console.error('Error removing stakeholder:', error);
+    }
+  };
+
+  const applyTemplateToProject = async (templateId) => {
+    try {
+      await axios.post(`${API_URL}/projects/${currentProject.id}/apply-template/${templateId}`);
+      setShowTemplateModal(false);
+      loadChecklist(currentProject.id);
+      loadProjects();
+    } catch (error) {
+      console.error('Error applying template:', error);
+      alert('Failed to apply template');
+    }
   };
 
   const toggleChecklistItem = async (itemId, completed) => {
@@ -508,6 +607,12 @@ function App() {
             <button className="back-btn" onClick={() => setView('campaigns')}>
               ← Back to Campaigns
             </button>
+            <button
+              onClick={() => deleteCampaign(currentCampaign.id)}
+              style={{ marginLeft: '10px', padding: '8px 16px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              🗑️ Delete Campaign
+            </button>
             <h1>📁 {currentCampaign.name}</h1>
             <p>{currentCampaign.description}</p>
           </div>
@@ -596,6 +701,19 @@ function App() {
           >
             ✏️ Edit Project
           </button>
+          <button
+            className="create-btn"
+            onClick={() => { loadTemplates(); setShowTemplateModal(true); }}
+            style={{ marginLeft: '10px', padding: '8px 16px', backgroundColor: '#2196F3' }}
+          >
+            📋 Apply Template
+          </button>
+          <button
+            onClick={() => deleteProject(currentProject.id)}
+            style={{ marginLeft: '10px', padding: '8px 16px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            🗑️ Delete Project
+          </button>
           <h1>📋 {currentProject.name}</h1>
           <p>{currentProject.description}</p>
         </div>
@@ -614,6 +732,43 @@ function App() {
           <div className="stat-card">
             <div className="stat-value">{comments.length}</div>
             <div className="stat-label">Comments</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stakeholders.length}</div>
+            <div className="stat-label">Stakeholders</div>
+          </div>
+        </div>
+
+        <div className="dashboard">
+          <div className="card">
+            <h2>👥 Project Stakeholders</h2>
+            <div style={{ marginBottom: '15px' }}>
+              {stakeholders.map((stakeholder) => (
+                <div key={stakeholder.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px', marginBottom: '8px' }}>
+                  <div>
+                    <strong>{stakeholder.name}</strong>
+                    <div style={{ fontSize: '0.9em', color: '#666' }}>
+                      {stakeholder.email} • {stakeholder.role || 'No role'} • {stakeholder.access_level}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeStakeholder(stakeholder.id)}
+                    style={{ padding: '4px 8px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {stakeholders.length === 0 && (
+                <p style={{ color: '#666', textAlign: 'center' }}>No stakeholders yet</p>
+              )}
+            </div>
+            <button
+              onClick={() => setShowStakeholderModal(true)}
+              style={{ width: '100%', padding: '10px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              + Add Stakeholder
+            </button>
           </div>
         </div>
 
@@ -729,6 +884,112 @@ function App() {
                 <button type="submit" className="btn-primary">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Stakeholder Modal */}
+      {showStakeholderModal && (
+        <div className="modal-overlay" onClick={() => setShowStakeholderModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Add Stakeholder</h2>
+            <form onSubmit={addStakeholder}>
+              <div className="form-group">
+                <label>Name *</label>
+                <input
+                  type="text"
+                  placeholder="Stakeholder name"
+                  value={newStakeholder.name}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Email *</label>
+                <input
+                  type="email"
+                  placeholder="stakeholder@example.com"
+                  value={newStakeholder.email}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Role</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Project Manager, Developer"
+                  value={newStakeholder.role}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, role: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Access Level</label>
+                <select
+                  value={newStakeholder.access_level}
+                  onChange={(e) => setNewStakeholder({ ...newStakeholder, access_level: e.target.value })}
+                >
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={() => setShowStakeholderModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">Add Stakeholder</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Apply Template Modal */}
+      {showTemplateModal && (
+        <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Apply Checklist Template</h2>
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ color: '#666', marginBottom: '15px' }}>
+                Select a template to add its checklist items to this project
+              </p>
+              {templates.map((template) => (
+                <div
+                  key={template.id}
+                  onClick={() => applyTemplateToProject(template.id)}
+                  style={{
+                    padding: '15px',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '8px',
+                    marginBottom: '10px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f5f5f5'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{template.name}</div>
+                  <div style={{ fontSize: '0.9em', color: '#666' }}>
+                    {template.description || 'No description'}
+                  </div>
+                  <div style={{ fontSize: '0.85em', color: '#999', marginTop: '5px' }}>
+                    {template.item_count} items
+                  </div>
+                </div>
+              ))}
+              {templates.length === 0 && (
+                <p style={{ color: '#999', textAlign: 'center' }}>No templates available</p>
+              )}
+            </div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setShowTemplateModal(false)}
+              style={{ width: '100%' }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
