@@ -265,6 +265,65 @@ function App() {
     }
   };
 
+  const createTemplate = async (e) => {
+    e.preventDefault();
+    if (!newTemplate.name.trim()) return;
+
+    // Filter out empty items
+    const items = newTemplate.items.filter(item => item.trim() !== '');
+    if (items.length === 0) {
+      alert('Please add at least one checklist item');
+      return;
+    }
+
+    try {
+      await axios.post(`${API_URL}/checklist-templates`, {
+        name: newTemplate.name,
+        description: newTemplate.description,
+        items: items
+      });
+      setNewTemplate({ name: '', description: '', items: [''] });
+      setShowCreateTemplateModal(false);
+      loadTemplates();
+    } catch (error) {
+      console.error('Error creating template:', error);
+      alert('Failed to create template');
+    }
+  };
+
+  const deleteTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/checklist-templates/${templateId}`);
+      loadTemplates();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      alert('Failed to delete template');
+    }
+  };
+
+  const addTemplateItem = () => {
+    setNewTemplate({ ...newTemplate, items: [...newTemplate.items, ''] });
+  };
+
+  const updateTemplateItem = (index, value) => {
+    const updatedItems = [...newTemplate.items];
+    updatedItems[index] = value;
+    setNewTemplate({ ...newTemplate, items: updatedItems });
+  };
+
+  const removeTemplateItem = (index) => {
+    if (newTemplate.items.length <= 1) {
+      alert('Template must have at least one item');
+      return;
+    }
+    const updatedItems = newTemplate.items.filter((_, i) => i !== index);
+    setNewTemplate({ ...newTemplate, items: updatedItems });
+  };
+
   const toggleChecklistItem = async (itemId, completed) => {
     try {
       await axios.patch(`${API_URL}/checklist/${itemId}`, null, {
@@ -347,6 +406,13 @@ function App() {
               style={{ marginRight: '10px', padding: '8px 16px', cursor: 'pointer' }}
             >
               📁 View Campaigns
+            </button>
+            <button
+              className="nav-btn"
+              onClick={() => { setView('templates'); loadTemplates(); }}
+              style={{ marginRight: '10px', padding: '8px 16px', cursor: 'pointer' }}
+            >
+              📋 Manage Templates
             </button>
           </div>
         </header>
@@ -677,6 +743,136 @@ function App() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  // Templates Management View
+  if (view === 'templates') {
+    return (
+      <div className="app">
+        <header className="header">
+          <div>
+            <button className="back-btn" onClick={() => setView('dashboard')}>
+              ← Back to Dashboard
+            </button>
+            <h1>📋 Checklist Template Management</h1>
+            <p>Create and manage reusable checklist templates</p>
+          </div>
+        </header>
+
+        <div className="container">
+          <div className="toolbar">
+            <button className="create-btn" onClick={() => setShowCreateTemplateModal(true)}>
+              + New Template
+            </button>
+          </div>
+
+          <div className="project-grid">
+            {templates.map((template) => (
+              <div key={template.id} className="project-card">
+                <div className="project-card-header">
+                  <h3>{template.name}</h3>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteTemplate(template.id); }}
+                    style={{ padding: '4px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Delete
+                  </button>
+                </div>
+                <p className="project-description">{template.description || 'No description'}</p>
+
+                <div style={{ marginTop: '15px' }}>
+                  <strong style={{ fontSize: '0.9em', color: '#666' }}>Checklist Items ({template.item_count}):</strong>
+                  <ul style={{ marginTop: '8px', marginLeft: '20px', fontSize: '0.9em', color: '#555' }}>
+                    {template.items && template.items.map((item, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="project-meta" style={{ marginTop: '15px' }}>
+                  <div className="meta-item">
+                    <span>Created: {template.created_at ? new Date(template.created_at).toLocaleDateString() : 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {templates.length === 0 && (
+            <div className="empty-state">
+              <h3>No templates yet</h3>
+              <p>Create your first checklist template to get started</p>
+            </div>
+          )}
+        </div>
+
+        {/* Create Template Modal */}
+        {showCreateTemplateModal && (
+          <div className="modal-overlay" onClick={() => setShowCreateTemplateModal(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Create New Template</h2>
+              <form onSubmit={createTemplate}>
+                <div className="form-group">
+                  <label>Template Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Standard Project Checklist"
+                    value={newTemplate.name}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    placeholder="Template description"
+                    value={newTemplate.description}
+                    onChange={(e) => setNewTemplate({ ...newTemplate, description: e.target.value })}
+                    rows="2"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Checklist Items *</label>
+                  {newTemplate.items.map((item, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={`Item ${index + 1}`}
+                        value={item}
+                        onChange={(e) => updateTemplateItem(index, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      {newTemplate.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTemplateItem(index)}
+                          style={{ padding: '8px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addTemplateItem}
+                    style={{ marginTop: '8px', padding: '8px 16px', backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    + Add Item
+                  </button>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn-secondary" onClick={() => { setShowCreateTemplateModal(false); setNewTemplate({ name: '', description: '', items: [''] }); }}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">Create Template</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
