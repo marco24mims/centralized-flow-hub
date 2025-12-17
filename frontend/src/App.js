@@ -966,6 +966,82 @@ function App() {
               + Add Stakeholder
             </button>
           </div>
+
+          {/* Webhook Details Card */}
+          {currentProject.source_system && (
+            <div className="card">
+              <h2>🔗 Webhook Integration Details</h2>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', fontSize: '0.9em' }}>
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '12px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#555' }}>Source System:</div>
+                    <div style={{ color: '#333' }}>
+                      <span style={{
+                        padding: '4px 12px',
+                        backgroundColor: currentProject.source_system === 'laravel11' ? '#4CAF50' : '#2196F3',
+                        color: 'white',
+                        borderRadius: '12px',
+                        fontSize: '0.85em',
+                        fontWeight: 'bold'
+                      }}>
+                        {currentProject.source_system === 'laravel11' ? 'Laravel 11 (AdMe CMS)' : 'Laravel 9 (Digital Products)'}
+                      </span>
+                    </div>
+
+                    <div style={{ fontWeight: 'bold', color: '#555' }}>Source ID:</div>
+                    <div style={{ fontFamily: 'monospace', color: '#333' }}>{currentProject.source_id}</div>
+
+                    <div style={{ fontWeight: 'bold', color: '#555' }}>Reference:</div>
+                    <div style={{ fontFamily: 'monospace', color: '#333', fontWeight: 'bold' }}>
+                      {currentProject.source_reference}
+                    </div>
+
+                    {currentProject.webhook_received_at && (
+                      <>
+                        <div style={{ fontWeight: 'bold', color: '#555' }}>Received At:</div>
+                        <div style={{ color: '#333' }}>{formatDate(currentProject.webhook_received_at)}</div>
+                      </>
+                    )}
+
+                    {currentProject.last_synced_at && (
+                      <>
+                        <div style={{ fontWeight: 'bold', color: '#555' }}>Last Synced:</div>
+                        <div style={{ color: '#333' }}>{formatDate(currentProject.last_synced_at)}</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Metadata Section */}
+                {currentProject.metadata && currentProject.metadata !== '{}' && (
+                  <div style={{ marginTop: '15px' }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#555', fontSize: '0.95em' }}>
+                      📦 Additional Metadata:
+                    </div>
+                    <div style={{
+                      backgroundColor: '#f8f9fa',
+                      padding: '12px',
+                      borderRadius: '6px',
+                      border: '1px solid #e0e0e0',
+                      maxHeight: '150px',
+                      overflowY: 'auto'
+                    }}>
+                      <pre style={{
+                        margin: 0,
+                        fontSize: '0.85em',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        color: '#333'
+                      }}>
+                        {JSON.stringify(JSON.parse(currentProject.metadata), null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="dashboard">
