@@ -3,9 +3,13 @@ import './LoginPrompt.css';
 
 const LoginPrompt = ({ authError }) => {
   const handleLogin = (system) => {
+    // Use the current hostname instead of hardcoded localhost
+    const hostname = window.location.hostname;
+    const host = hostname === 'localhost' || hostname === '127.0.0.1' ? 'localhost' : hostname;
+
     const urls = {
-      laravel11: 'http://localhost/v2/login',
-      laravel9: 'http://localhost/login'
+      laravel11: `http://${host}/v2/login`,
+      laravel9: `http://${host}/login`
     };
     window.location.href = urls[system];
   };
