@@ -10,17 +10,47 @@ export const AuthProvider = ({ children, apiUrl }) => {
 
   const checkAuth = async () => {
     try {
-      const response = await axios.get(`${apiUrl}/auth/user`, {
-        withCredentials: true
-      });
+      // Get current hostname to build Laravel URLs
+      const hostname = window.location.hostname;
+      const host = hostname === 'localhost' || hostname === '127.0.0.1' ? 'localhost' : hostname;
 
-      if (response.data.authenticated) {
-        setUser(response.data.user);
-        setAuthError(null);
-      } else {
-        setUser(null);
-        setAuthError('Not authenticated');
+      // Try Laravel 11 first
+      try {
+        const response = await axios.get(`http://${host}/v2/api/session/validate`, {
+          withCredentials: true,
+          timeout: 5000
+        });
+
+        if (response.data.authenticated) {
+          setUser(response.data.user);
+          setAuthError(null);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log('Laravel 11 session not found, trying Laravel 9...');
       }
+
+      // Try Laravel 9
+      try {
+        const response = await axios.get(`http://${host}/api/session/validate`, {
+          withCredentials: true,
+          timeout: 5000
+        });
+
+        if (response.data.authenticated) {
+          setUser(response.data.user);
+          setAuthError(null);
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log('Laravel 9 session not found');
+      }
+
+      // No valid session found
+      setUser(null);
+      setAuthError('Not authenticated');
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
