@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { AuthProvider, useAuth } from './AuthContext';
+import LoginPrompt from './LoginPrompt';
 
 // Dynamically construct API URL based on current hostname
 const getApiUrl = () => {
@@ -14,7 +16,17 @@ const getApiUrl = () => {
 
 const API_URL = getApiUrl();
 
+// Wrapper component with AuthProvider
+function AppWithAuth() {
+  return (
+    <AuthProvider apiUrl={API_URL}>
+      <App />
+    </AuthProvider>
+  );
+}
+
 function App() {
+  const { user, loading: authLoading, authError } = useAuth();
   const [view, setView] = useState('dashboard'); // 'dashboard', 'project', 'campaigns', 'campaign', 'templates'
   const [projects, setProjects] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
@@ -66,9 +78,28 @@ function App() {
     }
   }, [currentCampaign, view]);
 
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '16px' }}>Loading...</div>
+          <div style={{ fontSize: '14px', color: '#666' }}>Checking authentication...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return <LoginPrompt authError={authError} />;
+  }
+
   const loadProjects = async () => {
     try {
-      const response = await axios.get(`${API_URL}/projects/stats`);
+      const response = await axios.get(`${API_URL}/projects/stats`, {
+        withCredentials: true
+      });
       setProjects(response.data);
       setLoading(false);
     } catch (error) {
@@ -1269,4 +1300,4 @@ function App() {
   );
 }
 
-export default App;
+export default AppWithAuth;

@@ -38,6 +38,12 @@ def handle_webhook_project(payload: Dict[str, Any]) -> Dict[str, Any]:
         project_data = payload['project']
         campaign_data = payload.get('campaign')
 
+        # Extract creator info from metadata
+        metadata = project_data.get('metadata', {})
+        creator_email = metadata.get('user_email')
+        creator_name = metadata.get('user_name')
+        creator_source = source_system
+
         # Handle campaign if provided
         campaign_id = None
         if campaign_data:
@@ -59,7 +65,10 @@ def handle_webhook_project(payload: Dict[str, Any]) -> Dict[str, Any]:
 
             c.execute('''UPDATE projects
                          SET name = ?, description = ?, status = ?,
-                             metadata = ?, last_synced_at = ?, campaign_id = ?
+                             metadata = ?, last_synced_at = ?, campaign_id = ?,
+                             created_by_email = COALESCE(?, created_by_email),
+                             created_by_name = COALESCE(?, created_by_name),
+                             created_by_source = COALESCE(?, created_by_source)
                          WHERE source_system = ? AND source_id = ?''',
                       (project_data['name'],
                        project_data.get('description', ''),
@@ -67,6 +76,9 @@ def handle_webhook_project(payload: Dict[str, Any]) -> Dict[str, Any]:
                        json.dumps(project_data.get('metadata', {})),
                        current_time,
                        campaign_id,
+                       creator_email,
+                       creator_name,
+                       creator_source,
                        source_system,
                        source_id))
 
@@ -79,8 +91,8 @@ def handle_webhook_project(payload: Dict[str, Any]) -> Dict[str, Any]:
             c.execute('''INSERT INTO projects
                          (name, description, status, source_system, source_id,
                           source_reference, metadata, webhook_received_at, last_synced_at,
-                          created_at, campaign_id)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                          created_at, campaign_id, created_by_email, created_by_name, created_by_source)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                       (project_data['name'],
                        project_data.get('description', ''),
                        project_data.get('status', 'active'),
@@ -91,7 +103,10 @@ def handle_webhook_project(payload: Dict[str, Any]) -> Dict[str, Any]:
                        current_time,
                        current_time,
                        current_time,
-                       campaign_id))
+                       campaign_id,
+                       creator_email,
+                       creator_name,
+                       creator_source))
 
             project_id = c.lastrowid
             action = "created"

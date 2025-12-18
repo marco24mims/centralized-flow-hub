@@ -6,6 +6,12 @@ from datetime import datetime
 import sqlite3
 import json
 
+# Import authentication modules
+from auth_models import User
+from session_middleware import get_current_user, require_auth
+from project_access import filter_projects_by_access, can_access_project
+from auth_database import migrate_auth_schema
+
 # Import webhook integration modules
 from models import WebhookPayload, WebhookResponse
 from auth import verify_webhook_signature
@@ -172,6 +178,11 @@ print("Running stakeholders migration...")
 migrate_stakeholders()
 print("Stakeholders migration complete!")
 
+# Run authentication schema migration
+print("Running authentication schema migration...")
+migrate_auth_schema()
+print("Authentication schema migration complete!")
+
 # Pydantic models
 class Project(BaseModel):
     id: Optional[int] = None
@@ -200,6 +211,13 @@ class Comment(BaseModel):
 def read_root():
     return {"status": "Project Management System API - Running", "version": "1.0 Demo"}
 
+@app.get("/api/auth/user")
+async def get_user_info(user: Optional[User] = Depends(get_current_user)):
+    """Get current authenticated user information"""
+    if not user:
+        return {"authenticated": False}
+    return {"authenticated": True, "user": user.dict()}
+
 @app.get("/api/projects", response_model=List[Project])
 def get_projects():
     conn = sqlite3.connect('demo.db')
@@ -218,11 +236,14 @@ def get_projects():
     return projects
 
 @app.post("/api/projects", response_model=Project)
-def create_project(project: Project):
+def create_project(project: Project, user: User = Depends(require_auth)):
     conn = sqlite3.connect('demo.db')
     c = conn.cursor()
-    c.execute('INSERT INTO projects (name, description, status, campaign_id) VALUES (?, ?, ?, ?)',
-              (project.name, project.description, project.status, project.campaign_id))
+    c.execute('''INSERT INTO projects
+                 (name, description, status, campaign_id, created_by_email, created_by_name, created_by_source)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
+              (project.name, project.description, project.status, project.campaign_id,
+               user.email, user.name, user.source_system))
     project.id = c.lastrowid
     conn.commit()
     conn.close()
@@ -278,7 +299,7 @@ def delete_project(project_id: int):
     return {"status": "deleted", "id": project_id}
 
 @app.get("/api/projects/stats")
-def get_projects_stats():
+async def get_projects_stats(user: Optional[User] = Depends(get_current_user)):
     conn = sqlite3.connect('demo.db')
     c = conn.cursor()
     c.execute('SELECT id, name, description, status, campaign_id, created_at FROM projects ORDER BY created_at DESC')
@@ -297,6 +318,10 @@ def get_projects_stats():
         c.execute('SELECT COUNT(*) FROM comments WHERE project_id = ?', (project_id,))
         comment_count = c.fetchone()[0]
 
+        # Get stakeholder count
+        c.execute('SELECT COUNT(*) FROM stakeholders WHERE project_id = ?', (project_id,))
+        stakeholder_count = c.fetchone()[0]
+
         progress = round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
 
         projects.append({
@@ -309,9 +334,18 @@ def get_projects_stats():
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "progress": progress,
-            "comment_count": comment_count
+            "comment_count": comment_count,
+            "stakeholder_count": stakeholder_count
         })
     conn.close()
+
+    # Filter projects based on user access
+    if user:
+        projects = filter_projects_by_access(user, projects)
+    else:
+        # No user logged in, return empty list
+        projects = []
+
     return projects
 
 @app.get("/api/projects/{project_id}/checklist", response_model=List[ChecklistItem])
