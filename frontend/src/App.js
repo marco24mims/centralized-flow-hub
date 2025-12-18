@@ -40,14 +40,16 @@ function App() {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [showEditTemplateModal, setShowEditTemplateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showStakeholderModal, setShowStakeholderModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
   const [newProject, setNewProject] = useState({ name: '', description: '', status: 'active', campaign_id: null });
   const [newCampaign, setNewCampaign] = useState({ name: '', description: '', status: 'active' });
   const [newTemplate, setNewTemplate] = useState({ name: '', description: '', items: [''] });
@@ -319,6 +321,41 @@ function App() {
     }
   };
 
+  const editTemplate = (template) => {
+    setEditingTemplate({
+      id: template.id,
+      name: template.name,
+      description: template.description || '',
+      items: template.items && template.items.length > 0 ? template.items : ['']
+    });
+    setShowEditTemplateModal(true);
+  };
+
+  const updateTemplate = async (e) => {
+    e.preventDefault();
+    if (!editingTemplate.name.trim()) return;
+
+    const items = editingTemplate.items.filter(item => item.trim() !== '');
+    if (items.length === 0) {
+      alert('Please add at least one checklist item');
+      return;
+    }
+
+    try {
+      await axios.put(`${API_URL}/checklist-templates/${editingTemplate.id}`, {
+        name: editingTemplate.name,
+        description: editingTemplate.description,
+        items: items
+      });
+      setEditingTemplate(null);
+      setShowEditTemplateModal(false);
+      loadTemplates();
+    } catch (error) {
+      console.error('Error updating template:', error);
+      alert('Failed to update template');
+    }
+  };
+
   const addTemplateItem = () => {
     setNewTemplate({ ...newTemplate, items: [...newTemplate.items, ''] });
   };
@@ -338,6 +375,25 @@ function App() {
     setNewTemplate({ ...newTemplate, items: updatedItems });
   };
 
+  const addEditTemplateItem = () => {
+    setEditingTemplate({ ...editingTemplate, items: [...editingTemplate.items, ''] });
+  };
+
+  const updateEditTemplateItem = (index, value) => {
+    const updatedItems = [...editingTemplate.items];
+    updatedItems[index] = value;
+    setEditingTemplate({ ...editingTemplate, items: updatedItems });
+  };
+
+  const removeEditTemplateItem = (index) => {
+    if (editingTemplate.items.length <= 1) {
+      alert('Template must have at least one item');
+      return;
+    }
+    const updatedItems = editingTemplate.items.filter((_, i) => i !== index);
+    setEditingTemplate({ ...editingTemplate, items: updatedItems });
+  };
+
   const toggleChecklistItem = async (itemId, completed) => {
     try {
       await axios.patch(`${API_URL}/checklist/${itemId}`, null, {
@@ -347,6 +403,21 @@ function App() {
       loadProjects(); // Refresh to update stats
     } catch (error) {
       console.error('Error updating checklist:', error);
+    }
+  };
+
+  const deleteChecklistItem = async (itemId) => {
+    if (!window.confirm('Are you sure you want to delete this checklist item?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/checklist/${itemId}`);
+      loadChecklist(currentProject.id);
+      loadProjects(); // Refresh to update stats
+    } catch (error) {
+      console.error('Error deleting checklist item:', error);
+      alert('Failed to delete checklist item');
     }
   };
 
@@ -428,22 +499,53 @@ function App() {
     return (
       <div className="app">
         <header className="header">
-          <h1>🚀 Project Management Dashboard</h1>
-          <p>Manage all your projects in one place</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div>
+              <h1>🚀 Project Management Dashboard</h1>
+              <p>Manage all your projects in one place</p>
+            </div>
+            {user && (
+              <div style={{ textAlign: 'right', padding: '10px 20px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#fff', marginBottom: '4px' }}>
+                  {user.name}
+                  {user.is_admin && (
+                    <span style={{
+                      marginLeft: '10px',
+                      padding: '4px 12px',
+                      background: '#ffd700',
+                      color: '#000',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}>
+                      ADMIN
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>
+                  {user.email}
+                </div>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '4px' }}>
+                  {user.source_system === 'laravel11' ? 'Banner System (V2)' : 'Digital Operations'}
+                  {user.roles && user.roles.length > 0 && ` • ${user.roles.join(', ')}`}
+                </div>
+              </div>
+            )}
+          </div>
           <div style={{ marginTop: '10px' }}>
             <button
               className="nav-btn"
               onClick={() => setView('campaigns')}
               style={{ marginRight: '10px', padding: '8px 16px', cursor: 'pointer' }}
             >
-              📁 View Campaigns
+              📁 View by Campaign
             </button>
             <button
               className="nav-btn"
               onClick={() => { setView('templates'); loadTemplates(); }}
               style={{ marginRight: '10px', padding: '8px 16px', cursor: 'pointer' }}
             >
-              📋 Manage Templates
+              📋 Checklist Template Management
             </button>
           </div>
         </header>
@@ -804,12 +906,20 @@ function App() {
               <div key={template.id} className="project-card">
                 <div className="project-card-header">
                   <h3>{template.name}</h3>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteTemplate(template.id); }}
-                    style={{ padding: '4px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                  >
-                    Delete
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); editTemplate(template); }}
+                      style={{ padding: '4px 12px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteTemplate(template.id); }}
+                      style={{ padding: '4px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 <p className="project-description">{template.description || 'No description'}</p>
 
@@ -899,6 +1009,72 @@ function App() {
                     Cancel
                   </button>
                   <button type="submit" className="btn-primary">Create Template</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Template Modal */}
+        {showEditTemplateModal && editingTemplate && (
+          <div className="modal-overlay" onClick={() => { setShowEditTemplateModal(false); setEditingTemplate(null); }}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Edit Template</h2>
+              <form onSubmit={updateTemplate}>
+                <div className="form-group">
+                  <label>Template Name *</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Standard Project Checklist"
+                    value={editingTemplate.name}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Description</label>
+                  <textarea
+                    placeholder="Template description"
+                    value={editingTemplate.description}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, description: e.target.value })}
+                    rows="2"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Checklist Items *</label>
+                  {editingTemplate.items.map((item, index) => (
+                    <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder={`Item ${index + 1}`}
+                        value={item}
+                        onChange={(e) => updateEditTemplateItem(index, e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                      {editingTemplate.items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeEditTemplateItem(index)}
+                          style={{ padding: '8px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addEditTemplateItem}
+                    style={{ marginTop: '8px', padding: '8px 16px', backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    + Add Item
+                  </button>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn-secondary" onClick={() => { setShowEditTemplateModal(false); setEditingTemplate(null); }}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-primary">Update Template</button>
                 </div>
               </form>
             </div>
@@ -1083,13 +1259,31 @@ function App() {
                 <div
                   key={item.id}
                   className={`checklist-item ${item.completed ? 'completed' : ''}`}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.completed}
-                    onChange={() => toggleChecklistItem(item.id, item.completed)}
-                  />
-                  <span>{item.title}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                    <input
+                      type="checkbox"
+                      checked={item.completed}
+                      onChange={() => toggleChecklistItem(item.id, item.completed)}
+                    />
+                    <span>{item.title}</span>
+                  </div>
+                  <button
+                    onClick={() => deleteChecklistItem(item.id)}
+                    style={{
+                      background: '#ff4444',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                    title="Delete item"
+                  >
+                    ✕
+                  </button>
                 </div>
               ))}
             </div>
