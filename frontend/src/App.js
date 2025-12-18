@@ -78,23 +78,6 @@ function App() {
     }
   }, [currentCampaign, view]);
 
-  // Show loading while checking authentication
-  if (authLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '24px', marginBottom: '16px' }}>Loading...</div>
-          <div style={{ fontSize: '14px', color: '#666' }}>Checking authentication...</div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show login prompt if not authenticated
-  if (!user) {
-    return <LoginPrompt authError={authError} />;
-  }
-
   const loadProjects = async () => {
     try {
       const response = await axios.get(`${API_URL}/projects/stats`, {
@@ -418,6 +401,23 @@ function App() {
                            (project.campaign_id && project.campaign_id.toString() === campaignFilter);
     return matchesSearch && matchesStatus && matchesCampaign;
   });
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '16px' }}>Loading...</div>
+          <div style={{ fontSize: '14px', color: '#666' }}>Checking authentication...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return <LoginPrompt authError={authError} />;
+  }
 
   if (loading) {
     return <div className="loading">Loading Project Management System...</div>;
