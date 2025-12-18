@@ -51,10 +51,13 @@ export const AuthProvider = ({ children, apiUrl }) => {
       // No valid session found
       setUser(null);
       setAuthError('Not authenticated');
+      // Clear user header
+      delete axios.defaults.headers.common['X-User-Info'];
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
       setAuthError('Authentication failed');
+      delete axios.defaults.headers.common['X-User-Info'];
     } finally {
       setLoading(false);
     }
@@ -66,6 +69,23 @@ export const AuthProvider = ({ children, apiUrl }) => {
     const interval = setInterval(checkAuth, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [apiUrl]);
+
+  // Set user info in axios defaults whenever user changes
+  useEffect(() => {
+    if (user) {
+      // Send user info to backend via header
+      axios.defaults.headers.common['X-User-Info'] = JSON.stringify({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        is_admin: user.is_admin,
+        source_system: user.source_system,
+        roles: user.roles || []
+      });
+    } else {
+      delete axios.defaults.headers.common['X-User-Info'];
+    }
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, authError, checkAuth }}>

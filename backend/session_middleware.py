@@ -2,13 +2,34 @@ import httpx
 from fastapi import Request, HTTPException, Depends
 from typing import Optional
 import os
+import json
 from auth_models import User
 
 LARAVEL11_URL = os.getenv("LARAVEL11_URL", "http://localhost/v2")
 LARAVEL9_URL = os.getenv("LARAVEL9_URL", "http://localhost")
 
 async def get_current_user(request: Request) -> Optional[User]:
-    """Extract and validate user from Laravel session cookies"""
+    """Extract user from X-User-Info header (sent by frontend after Laravel validation)"""
+
+    # Check for user info in header (sent by frontend after validating with Laravel)
+    user_info_header = request.headers.get('X-User-Info')
+    if user_info_header:
+        try:
+            user_data = json.loads(user_info_header)
+            # Create a minimal User object with required fields
+            return User(
+                id=user_data.get('id', 0),  # ID might not be in header, use 0 as default
+                email=user_data['email'],
+                name=user_data['name'],
+                source_system=user_data.get('source_system', 'unknown'),
+                is_admin=user_data.get('is_admin', False),
+                department=user_data.get('department'),
+                roles=user_data.get('roles', [])
+            )
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error parsing X-User-Info header: {e}")
+
+    # Fallback: try cookie-based validation (for backward compatibility)
     cookies = request.cookies
 
     # Try Laravel 11 first
